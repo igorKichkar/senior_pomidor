@@ -25,4 +25,11 @@ class UserBookRelation(models.Model):
     book = models.ForeignKey(Book, on_delete=models.CASCADE)
     like = models.BooleanField(default=False)
     in_bookmarks = models.BooleanField(default=False)
-    rate = models.PositiveSmallIntegerField(choices=RATE_CHOICES)
+    rate = models.PositiveSmallIntegerField(choices=RATE_CHOICES, null=True)
+
+
+class CommentBook(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='my_mycomments')
+    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='my_mycomment_books')
+    content = models.TextField()
+    date = models.DateTimeField(auto_now_add=True)

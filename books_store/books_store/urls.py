@@ -4,11 +4,12 @@ from django.conf.urls import include
 from rest_framework.routers import SimpleRouter
 from store.views import auth
 
-from store.views import BookViewSet, UserBooksRelationViev
+from store.views import BookViewSet, UserBooksRelationViev, CommentBooksView
 
 router = SimpleRouter()
 router.register(r'book', BookViewSet)
 router.register(r'book_relation', UserBooksRelationViev)
+router.register(r'book_comment', CommentBooksView)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

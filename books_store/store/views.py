@@ -9,8 +9,8 @@ from .permissions import IsOwnerOrStuffOrReadOnly
 from rest_framework.mixins import UpdateModelMixin
 from rest_framework.viewsets import GenericViewSet
 
-from .models import Book, UserBookRelation
-from .serializers import BookSerializer, UserBookRelationSerializer
+from .models import Book, UserBookRelation, CommentBook
+from .serializers import BookSerializer, UserBookRelationSerializer, CommentBooksSerializer
 
 
 class BookViewSet(ModelViewSet):
@@ -32,14 +32,35 @@ class UserBooksRelationViev(UpdateModelMixin, GenericViewSet):
     permission_classes = [IsAuthenticated]
     queryset = UserBookRelation.objects.all()
     serializer_class = UserBookRelationSerializer
-    lookup_field = 'book' # в запросе через book передается id книги 
+    lookup_field = 'book'  # в запросе через book передается id книги
 
     def get_object(self):   # по книге и пользователю получаем
-                            # объект UserBookRelation если он существует, иначе создается
+        # объект UserBookRelation если он существует, иначе создается
+        # (т.е. пользователь ставит лайк и объект создается если его нет или изменяется)
         obj, _ = UserBookRelation.objects.get_or_create(
             user=self.request.user, book_id=self.kwargs['book'])
         return obj
 
+
+class CommentBooksView(ModelViewSet):
+    permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrStuffOrReadOnly]
+    queryset = CommentBook.objects.all()
+    serializer_class = CommentBooksSerializer
+
+    # def perform_create(self, serializer):
+    #     serializer.save(user=self.request.user)
+
+
+    # lookup_field = 'book'
+
+    # def perform_update(self, serializer):
+    #     print(self.request.method)
+    #     book = Book.objects.filter(id=self.kwargs['book'])
+    #     comment_book = CommentBook.objects.filter(book=book).exists()
+    #     if comment_book:
+    #         serializer.save()
+    #     else:
+    #         serializer.save(user=self.request.user, book=comment_book)
 
 def auth(request):
     return render(request, 'auth.html')

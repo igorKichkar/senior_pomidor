@@ -1,6 +1,6 @@
 from dataclasses import fields
 from rest_framework.serializers import ModelSerializer, ReadOnlyField
-from .models import Book, UserBookRelation
+from .models import Book, UserBookRelation, CommentBook
 
 
 class BookSerializer(ModelSerializer):
@@ -14,5 +14,10 @@ class UserBookRelationSerializer(ModelSerializer):
     class Meta:
         model = UserBookRelation
         fields = ['book', 'like', 'in_bookmarks', 'rate']
+
+class CommentBooksSerializer(ModelSerializer):
+    class Meta:
+        model = CommentBook
+        fields = ['content', 'date']
 
       
