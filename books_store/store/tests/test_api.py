@@ -1,9 +1,10 @@
 from django.contrib.auth.models import User
 from django.urls import reverse
+from django.db.models import Count, Case, When, Avg
 from rest_framework.test import APITestCase
 from rest_framework import status
-from store.models import Book, UserBookRelation
-from store.serializers import BookSerializer
+from store.models import Book, UserBookRelation, CommentBook
+from store.serializers import BookSerializer, CommentBooksSerializer
 import json
 import collections
 
@@ -23,40 +24,48 @@ class BookApiTestCase(APITestCase):
         url = reverse('book-list')
         # метод client делает запрос с указанным url и возвращает отвер
         response = self.client.get(url)
+        books = Book.objects.all().annotate(
+            likes_count=Count(Case(When(userbookrelation__like=True, then=1))),
+            rating=Avg('userbookrelation__rate')
+        )
+
         serializer_data = BookSerializer(
-            [self.book_1, self.book_2, self.book_3], many=True).data
+            books, many=True).data
         self.assertEqual(serializer_data, response.data)
         self.assertEqual(status.HTTP_200_OK, response.status_code)
 
     def test_get_filter(self):
         url = reverse('book-list')
         response = self.client.get(url, data={'price': '150.00'})
+        books = Book.objects.filter(id__in=[self.book_1.id, self.book_3.id]).annotate(
+            likes_count=Count(Case(When(userbookrelation__like=True, then=1))),
+            rating=Avg('userbookrelation__rate'))
         serializer_data = BookSerializer(
-            [self.book_1, self.book_3], many=True).data
+            books, many=True).data
         self.assertEqual(serializer_data, response.data)
         self.assertEqual(status.HTTP_200_OK, response.status_code)
 
     def test_get_search(self):
         url = reverse('book-list')
         response = self.client.get(url, data={'search': 'Aurhor-3'})
+        books = Book.objects.filter(id__in=[self.book_1.id, self.book_3.id]).annotate(
+            likes_count=Count(Case(When(userbookrelation__like=True, then=1))),
+            rating=Avg('userbookrelation__rate'))
         serializer_data = BookSerializer(
-            [self.book_1, self.book_3], many=True).data
+            books, many=True).data
         self.assertEqual(serializer_data, response.data)
         self.assertEqual(status.HTTP_200_OK, response.status_code)
 
     def test_get_ordering(self):
         url = reverse('book-list')
         response = self.client.get(url, data={'ordering': 'name'})
-        expected_data = [
-            collections.OrderedDict(
-                {"id": self.book_2.id, "name": "aook_2", "price": "250.00", "author_name": "Aurhor-2", "owner": self.user.id, "readers": []}),
-            collections.OrderedDict(
-                {"id": self.book_3.id, "name": "book_3", "price": "150.00", "author_name": "Aurhor-3", "owner": self.user.id, "readers": []}),
-            collections.OrderedDict(
-                {"id": self.book_1.id, "name": 'cook_1 Aurhor-3', "price": "150.00", "author_name": "Aurhor-1", "owner": self.user.id, "readers": []})
-        ]
+        expexted_books = Book.objects.all().annotate(
+            likes_count=Count(Case(When(userbookrelation__like=True, then=1))),
+            rating=Avg('userbookrelation__rate')
+        ).order_by('name')
+        serializer_data = BookSerializer(expexted_books, many=True).data
         self.assertEqual(status.HTTP_200_OK, response.status_code)
-        self.assertEqual(expected_data, response.data)
+        self.assertEqual(serializer_data, response.data)
 
     def test_create(self):
         # производится авторизация пользователя
@@ -101,7 +110,10 @@ class BookApiTestCase(APITestCase):
         # производится авторизация пользователя
         self.client.force_login(self.user)
         url = reverse('book-detail', args=(self.book_1.id,))
-        serializer_data = BookSerializer(self.book_1).data
+        book = Book.objects.filter(id=self.book_1.id).annotate(
+            likes_count=Count(Case(When(userbookrelation__like=True, then=1))),
+            rating=Avg('userbookrelation__rate'))
+        serializer_data = BookSerializer(book[0]).data
         response = self.client.get(url)
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(serializer_data, response.data)
@@ -171,18 +183,52 @@ class BookRelationTestCase(APITestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(3, response.data["rate"])
 
-    # def test_create_comment(self):
-    #     self.client.force_login(self.user)
-    #     url = reverse('commentbook-detail', args=(self.book_1.id,))
-    #     data = {
-    #         "comment": "some_comment",
-    #     }
-    #     json_data = json.dumps(data)
-    #     response = self.client.patch(
-    #         url, data=json_data, content_type='application/json')
-    #     print(response.data)
-    #     print('sssssssssssssssssssss')
-    #     self.assertEqual(status.HTTP_200_OK, response.status_code)
-        
-    #     # self.assertEqual(3, response.data["rate"])
-    
+
+class CommentApiTestCase(APITestCase):
+
+    def setUp(self):
+        self.user = User.objects.create(username='test_user')
+        self.book_1 = Book.objects.create(name='cook_1 Aurhor-3', price='150.00',
+                                          author_name='Aurhor-1', owner=self.user)
+        self.book_2 = Book.objects.create(name='aook_2', price='250.00',
+                                          author_name='Aurhor-2', owner=self.user)
+        self.comment_1 = CommentBook.objects.create(
+            book=self.book_1, owner=self.user, content='test comment')
+
+    def test_get(self):
+        url = reverse('commentbook-list')
+        # метод client делает запрос с указанным url и возвращает отвер
+        response = self.client.get(url)
+        serializer_data = CommentBooksSerializer(
+            [self.comment_1], many=True).data
+        self.assertEqual(serializer_data, response.data)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+
+    def test_post_no_access(self):
+        url = reverse('commentbook-list')
+        # метод client делает запрос с указанным url и возвращает отвер
+        data = {
+            "book": self.book_1.id,
+            "owner": self.user.id,
+            "content": "test comment",
+        }
+        json_data = json.dumps(data)
+        response = self.client.post(
+            url, data=json_data, content_type='application/json')
+        self.assertEqual(1, CommentBook.objects.count())
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+    def test_post(self):
+        self.client.force_login(self.user)
+        url = reverse('commentbook-list')
+        # метод client делает запрос с указанным url и возвращает отвер
+        data = {
+            "book": self.book_1.id,
+            "owner": self.user.id,
+            "content": "test comment",
+        }
+        json_data = json.dumps(data)
+        response = self.client.post(
+            url, data=json_data, content_type='application/json')
+        self.assertEqual(2, CommentBook.objects.count())
+        self.assertEqual(status.HTTP_201_CREATED, response.status_code)

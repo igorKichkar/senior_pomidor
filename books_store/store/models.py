@@ -29,7 +29,7 @@ class UserBookRelation(models.Model):
 
 
 class CommentBook(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='my_mycomments')
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='my_mycomments')
     book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='my_mycomment_books')
     content = models.TextField()
     date = models.DateTimeField(auto_now_add=True)

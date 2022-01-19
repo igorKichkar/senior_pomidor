@@ -1,6 +1,7 @@
 from audioop import reverse
 from cgitb import lookup
 from django.shortcuts import render
+from django.db.models import Count, Case, When, Avg
 from rest_framework.viewsets import ModelViewSet
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
@@ -11,10 +12,22 @@ from rest_framework.viewsets import GenericViewSet
 
 from .models import Book, UserBookRelation, CommentBook
 from .serializers import BookSerializer, UserBookRelationSerializer, CommentBooksSerializer
+from rest_framework.response import Response
 
 
 class BookViewSet(ModelViewSet):
-    queryset = Book.objects.all()
+    queryset = Book.objects.all().annotate(
+        likes_count=Count(Case(When(userbookrelation__like=True, then=1))),
+        rating=Avg('userbookrelation__rate'))
+
+    # Таким образом можно получить  owner и readers без пополнительных запросов в БД 
+    # (что бы получить всю информацию об owner, а не только одно поле, нужно создать 
+    # дополнительный серилизатор и использовать его в BookSerializer)
+    #
+    # queryset = Book.objects.all().annotate(
+    #         likes_count=Count(Case(When(userbookrelation__like=True, then=1))),
+    #         rating=Avg('userbookrelation__rate')).select_related('owner').prefetch_related('readers')
+
     serializer_class = BookSerializer
     filter_backends = [DjangoFilterBackend,
                        filters.SearchFilter, filters.OrderingFilter]
@@ -43,24 +56,14 @@ class UserBooksRelationViev(UpdateModelMixin, GenericViewSet):
 
 
 class CommentBooksView(ModelViewSet):
-    permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrStuffOrReadOnly]
     queryset = CommentBook.objects.all()
     serializer_class = CommentBooksSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrStuffOrReadOnly]
 
-    # def perform_create(self, serializer):
-    #     serializer.save(user=self.request.user)
+    def perform_create(self, serializer):
 
+        serializer.save(owner=self.request.user)
 
-    # lookup_field = 'book'
-
-    # def perform_update(self, serializer):
-    #     print(self.request.method)
-    #     book = Book.objects.filter(id=self.kwargs['book'])
-    #     comment_book = CommentBook.objects.filter(book=book).exists()
-    #     if comment_book:
-    #         serializer.save()
-    #     else:
-    #         serializer.save(user=self.request.user, book=comment_book)
 
 def auth(request):
     return render(request, 'auth.html')
